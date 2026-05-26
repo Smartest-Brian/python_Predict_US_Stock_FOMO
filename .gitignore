@@ -1,0 +1,53 @@
+# ===========================
+# Python
+# ===========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# ===========================
+# Virtual Environment
+# ===========================
+.venv/
+venv/
+ENV/
+
+# ===========================
+# Runtime Data & Trained Models
+# ===========================
+data/*.csv
+models/*.pkl
+logs/*.log
+!.gitkeep
+
+# ===========================
+# IDE & Editor
+# ===========================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ===========================
+# Antigravity / Gemini Agent
+# ===========================
+.antigravity/
+
+# ===========================
+# OS Generated
+# ===========================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db

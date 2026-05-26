@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>美股 FOMO 指數與情緒分析儀表板</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="brand">
+                <span class="brand-icon">📈</span>
+                <div>
+                    <h1 class="logo-text">US MARKET FOMO INDEX</h1>
+                    <p class="logo-sub">美股情緒與機器學習分類儀表板</p>
+                </div>
+            </div>
+            
+            <div class="control-panel">
+                <div class="status-badge">
+                    <span id="model-status-dot" class="status-dot"></span>
+                    <span id="model-status-text">載入預測器中...</span>
+                </div>
+                <button id="btn-retrain" class="btn-retrain" onclick="triggerRetrain()">
+                    <i class="fa-solid fa-arrows-rotate"></i> 重新訓練模型
+                </button>
+            </div>
+        </header>
+
+        <!-- Dashboard Layout -->
+        <div class="dashboard-grid">
+            <!-- Left Column: Live Gauge and State -->
+            <aside class="dial-container glass-card">
+                <h2 class="metrics-title" style="margin-bottom: 1.5rem;"><i class="fa-solid fa-gauge-high"></i> 當前 FOMO 程度</h2>
+                
+                <!-- Circular Gauge -->
+                <div class="gauge">
+                    <svg class="gauge-svg" viewBox="0 0 220 220">
+                        <circle class="gauge-bg" cx="110" cy="110" r="100"></circle>
+                        <circle id="gauge-progress" class="gauge-fill" cx="110" cy="110" r="100"></circle>
+                    </svg>
+                    <div class="gauge-content">
+                        <span id="fomo-score-val" class="gauge-value">--</span>
+                        <span class="gauge-label">FOMO SCORE</span>
+                    </div>
+                </div>
+
+                <!-- Glow State Badge -->
+                <div id="fomo-state-badge" class="status-badge-lg neutral-theme">
+                    ---
+                </div>
+                
+                <p id="update-timestamp" class="update-time">數據更新日期: -----</p>
+
+                <!-- ML Prediction Probabilities -->
+                <div class="prob-list">
+                    <h3 class="metrics-title" style="font-size: 1rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem; width: 100%; text-align: left;">
+                        <i class="fa-solid fa-circle-nodes"></i> 機器學習分類機率 (ML Probabilities)
+                    </h3>
+                    
+                    <!-- Probabilities items will be dynamically rendered -->
+                    <div id="probabilities-container" style="width: 100%; display: flex; flex-direction: column; gap: 0.85rem;">
+                        <div class="prob-item">
+                            <div class="prob-meta"><span class="prob-name">極度 FOMO</span><span class="prob-val">0%</span></div>
+                            <div class="prob-track"><div class="prob-bar" style="background-color: var(--color-extreme-fomo); width: 0%;"></div></div>
+                        </div>
+                        <div class="prob-item">
+                            <div class="prob-meta"><span class="prob-name">貪婪 / FOMO</span><span class="prob-val">0%</span></div>
+                            <div class="prob-track"><div class="prob-bar" style="background-color: var(--color-fomo); width: 0%;"></div></div>
+                        </div>
+                        <div class="prob-item">
+                            <div class="prob-meta"><span class="prob-name">中立</span><span class="prob-val">0%</span></div>
+                            <div class="prob-track"><div class="prob-bar" style="background-color: var(--color-neutral); width: 0%;"></div></div>
+                        </div>
+                        <div class="prob-item">
+                            <div class="prob-meta"><span class="prob-name">恐慌</span><span class="prob-val">0%</span></div>
+                            <div class="prob-track"><div class="prob-bar" style="background-color: var(--color-fear); width: 0%;"></div></div>
+                        </div>
+                        <div class="prob-item">
+                            <div class="prob-meta"><span class="prob-name">極度恐慌</span><span class="prob-val">0%</span></div>
+                            <div class="prob-track"><div class="prob-bar" style="background-color: var(--color-panic); width: 0%;"></div></div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Right Column: Chart, Metrics breakdown and Sentiment news -->
+            <main class="main-content">
+                <!-- S&P 500 vs FOMO History Chart -->
+                <section class="glass-card">
+                    <div class="chart-header">
+                        <h2 class="chart-title">
+                            <i class="fa-solid fa-chart-line"></i> 標普 500 價格歷史與 FOMO 程度疊加
+                        </h2>
+                        <div class="chart-legend">
+                            <div class="legend-item"><span class="legend-color" style="background-color: var(--color-extreme-fomo);"></span> 極度 FOMO</div>
+                            <div class="legend-item"><span class="legend-color" style="background-color: var(--color-fomo);"></span> FOMO</div>
+                            <div class="legend-item"><span class="legend-color" style="background-color: var(--color-neutral);"></span> 中立</div>
+                            <div class="legend-item"><span class="legend-color" style="background-color: var(--color-fear);"></span> 恐慌</div>
+                            <div class="legend-item"><span class="legend-color" style="background-color: var(--color-panic);"></span> 極度恐慌</div>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="historyChart"></canvas>
+                    </div>
+                </section>
+
+                <!-- Indicator Score Card Grid -->
+                <section>
+                    <h2 class="metrics-title"><i class="fa-solid fa-chart-bar"></i> 6 大情緒子指標得分分解 (Indicator Breakdown)</h2>
+                    <div class="metrics-grid" id="metrics-grid-container">
+                        <!-- Metric cards will be rendered here dynamically -->
+                        <div class="metric-card glass-card">
+                            <div class="metric-header">
+                                <span class="metric-name">載入中...</span>
+                                <span class="metric-val">--</span>
+                            </div>
+                            <div class="metric-progress-container">
+                                <div class="metric-bar-bg"><div class="metric-bar-fill" style="width: 0%;"></div></div>
+                                <div class="metric-score-label"><span>恐慌 (0)</span><span>FOMO (100)</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- News & Social Sentiment Feed -->
+                <section class="glass-card news-section">
+                    <h2 class="metrics-title"><i class="fa-solid fa-comments"></i> 實時美股新聞與 Reddit 論壇情緒 (Live Feed)</h2>
+                    <div class="news-list" id="news-container">
+                        <!-- News items will be loaded dynamically -->
+                        <div style="text-align: center; color: var(--text-secondary); padding: 2rem;">
+                            <i class="fa-solid fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 0.5rem;"></i>
+                            <p>正在解析 RSS 情緒資料...</p>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <!-- UI Logic Script -->
+    <script>
+        // Indicator color schemes matching FOMO values
+        const fomoColors = {
+            panic: 'var(--color-panic)',
+            fear: 'var(--color-fear)',
+            neutral: 'var(--color-neutral)',
+            fomo: 'var(--color-fomo)',
+            extremeFomo: 'var(--color-extreme-fomo)'
+        };
+
+        const fomoShadows = {
+            panic: 'var(--glow-panic)',
+            fear: 'var(--glow-fear)',
+            neutral: 'var(--glow-neutral)',
+            fomo: 'var(--glow-fomo)',
+            extremeFomo: 'var(--glow-extreme-fomo)'
+        };
+
+        let historyChart = null;
+
+        // Determine Theme based on FOMO score
+        function getFomoThemeInfo(score) {
+            if (score < 20) return { key: 'panic', label: '極度恐慌 (Extreme Panic)', cssClass: 'panic-theme', color: fomoColors.panic, shadow: fomoShadows.panic };
+            if (score < 40) return { key: 'fear', label: '恐慌 (Fear)', cssClass: 'fear-theme', color: fomoColors.fear, shadow: fomoShadows.fear };
+            if (score < 60) return { key: 'neutral', label: '中立 (Neutral)', cssClass: 'neutral-theme', color: fomoColors.neutral, shadow: fomoShadows.neutral };
+            if (score < 80) return { key: 'fomo', label: '貪婪 / FOMO', cssClass: 'fomo-theme', color: fomoColors.fomo, shadow: fomoShadows.fomo };
+            return { key: 'extremeFomo', label: '極度 FOMO (Extreme Greed)', cssClass: 'extreme-fomo-theme', color: fomoColors.extremeFomo, shadow: fomoShadows.extremeFomo };
+        }
+
+        // Initialize/Update Gauge circular bar
+        function updateGauge(score) {
+            const circle = document.getElementById('gauge-progress');
+            const scoreVal = document.getElementById('fomo-score-val');
+            const stateBadge = document.getElementById('fomo-state-badge');
+            
+            // Set value text
+            scoreVal.innerText = score.toFixed(1);
+            
+            // Calculate stroke-dashoffset (radius is 100, circumference is 2 * PI * r = 628)
+            const circumference = 628;
+            const offset = circumference - (score / 100) * circumference;
+            circle.style.strokeDashoffset = offset;
+            
+            // Apply themes dynamically
+            const theme = getFomoThemeInfo(score);
+            circle.style.stroke = theme.color;
+            circle.style.filter = `drop-shadow(0 0 8px ${theme.color})`;
+            
+            stateBadge.innerText = theme.label;
+            stateBadge.className = `status-badge-lg ${theme.cssClass}`;
+            stateBadge.style.borderColor = theme.color;
+            stateBadge.style.boxShadow = `0 0 20px ${theme.color}44`;
+        }
+
+        // Load dashboard real-time data
+        async function loadFomoData() {
+            try {
+                const response = await fetch('/api/fomo');
+                const data = await response.json();
+                
+                // 1. Update Dial Gauge
+                updateGauge(data.composite_fomo_score);
+                
+                // 2. Update Update date
+                document.getElementById('update-timestamp').innerText = `數據更新日期: ${data.timestamp}`;
+                
+                // 3. Update Model Badge
+                const dot = document.getElementById('model-status-dot');
+                const text = document.getElementById('model-status-text');
+                if (data.model_loaded) {
+                    dot.className = 'status-dot active';
+                    text.innerText = '已載入隨機森林模型';
+                } else {
+                    dot.className = 'status-dot';
+                    dot.style.backgroundColor = 'var(--color-fear)';
+                    text.innerText = '模型未訓練 (使用規則引擎)';
+                }
+
+                // 4. Update ML Probability bars
+                const probContainer = document.getElementById('probabilities-container');
+                const probs = data.prediction_probabilities;
+                
+                // Ensure order match display: Extreme FOMO, FOMO, Neutral, Fear, Extreme Panic
+                const orderedKeys = ["Extreme FOMO", "FOMO", "Neutral", "Fear", "Extreme Panic"];
+                const keyMap = {
+                    "Extreme FOMO": { label: "極度 FOMO", color: "var(--color-extreme-fomo)" },
+                    "FOMO": { label: "貪婪 / FOMO", color: "var(--color-fomo)" },
+                    "Neutral": { label: "中立 (Neutral)", color: "var(--color-neutral)" },
+                    "Fear": { label: "恐慌 (Fear)", color: "var(--color-fear)" },
+                    "Extreme Panic": { label: "極度恐慌 (Panic)", color: "var(--color-panic)" }
+                };
+                
+                probContainer.innerHTML = '';
+                orderedKeys.forEach(k => {
+                    const prob = probs[k] !== undefined ? probs[k] : 0;
+                    const meta = keyMap[k];
+                    probContainer.innerHTML += `
+                        <div class="prob-item">
+                            <div class="prob-meta">
+                                <span class="prob-name" style="color: ${prob > 20 ? 'var(--text-primary)' : 'var(--text-secondary)'}; font-weight: ${prob > 30 ? '700' : '400'}">${meta.label}</span>
+                                <span class="prob-val" style="color: ${prob > 20 ? '#ffffff' : 'var(--text-secondary)'}">${prob.toFixed(1)}%</span>
+                            </div>
+                            <div class="prob-track">
+                                <div class="prob-bar" style="background-color: ${meta.color}; width: ${prob}%; filter: drop-shadow(0 0 3px ${meta.color})"></div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                // 5. Update Metrics Breakdown Grid
+                const gridContainer = document.getElementById('metrics-grid-container');
+                gridContainer.innerHTML = '';
+                
+                const breakdown = data.indicator_breakdown;
+                const metricNames = {
+                    "momentum": "市場動能 (S&P 500 Momentum)",
+                    "speculative_demand": "投機偏好 (SPHB/SPLV Speculative)",
+                    "safe_haven_demand": "資金避險權衡 (Equity vs Bonds)",
+                    "junk_bond_demand": "信用風險胃口 (Junk vs IG Bonds)",
+                    "market_volatility": "市場懈怠度 (VIX Complacency)",
+                    "social_sentiment": "社交新聞情緒 (Social Sentiment)"
+                };
+                
+                for (let key in breakdown) {
+                    const metric = breakdown[key];
+                    const name = metricNames[key] || key;
+                    const score = metric.score;
+                    const theme = getFomoThemeInfo(score);
+                    
+                    gridContainer.innerHTML += `
+                        <div class="metric-card glass-card">
+                            <div class="metric-header">
+                                <span class="metric-name">${name}</span>
+                                <span class="metric-val" style="color: ${theme.color}">${score.toFixed(1)} 分</span>
+                            </div>
+                            <div style="font-size: 0.8rem; font-family: 'JetBrains Mono', monospace; color: var(--text-secondary);">
+                                目前指標原始值: <span style="color: var(--text-primary); font-weight: 600;">${metric.raw_value}</span>
+                            </div>
+                            <div class="metric-progress-container">
+                                <div class="metric-bar-bg">
+                                    <div class="metric-bar-fill" style="width: ${score}%; background: linear-gradient(90deg, var(--color-neutral) 0%, ${theme.color} 100%); filter: drop-shadow(0 0 2px ${theme.color})"></div>
+                                </div>
+                                <div class="metric-score-label">
+                                    <span>恐慌 (0)</span>
+                                    <span>FOMO (100)</span>
+                                </div>
+                            </div>
+                            <div class="metric-desc">${metric.description}</div>
+                        </div>
+                    `;
+                }
+
+                // 6. Update Live News/Social Sentiment
+                const newsContainer = document.getElementById('news-container');
+                const newsList = data.sentiment_news;
+                
+                if (newsList && newsList.length > 0) {
+                    newsContainer.innerHTML = '';
+                    newsList.forEach(item => {
+                        let statusClass = 'neutral';
+                        if (item.status === 'Bullish') statusClass = 'bullish';
+                        if (item.status === 'Bearish') statusClass = 'bearish';
+                        
+                        let displayStatus = '中立';
+                        if (item.status === 'Bullish') displayStatus = '看多/FOMO';
+                        if (item.status === 'Bearish') displayStatus = '看空/恐慌';
+                        
+                        newsContainer.innerHTML += `
+                            <a href="${item.link}" target="_blank" class="news-item">
+                                <div class="news-main">
+                                    <h4 class="news-title">${item.title}</h4>
+                                    <div class="news-meta">
+                                        <span class="news-source"><i class="fa-solid fa-circle-nodes"></i> ${item.source}</span>
+                                        <span>${item.pub_date ? item.pub_date.substring(0, 22) : '無時間資料'}</span>
+                                    </div>
+                                </div>
+                                <div class="news-sentiment">
+                                    <span class="sentiment-badge ${statusClass}">${displayStatus}</span>
+                                    <span class="sentiment-score-num" style="color: ${item.status === 'Bullish' ? 'var(--color-fomo)' : item.status === 'Bearish' ? 'var(--color-panic)' : 'var(--text-secondary)'}">${item.sentiment_score.toFixed(1)}分</span>
+                                </div>
+                            </a>
+                        `;
+                    });
+                } else {
+                    newsContainer.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 2rem;">無新聞情绪資料</div>';
+                }
+
+            } catch (err) {
+                console.error("載入 FOMO 資料失敗:", err);
+            }
+        }
+
+        // Color S&P 500 line based on daily FOMO score
+        function getFomoColorStr(val) {
+            if (val < 20) return '#ff3b30'; // panic
+            if (val < 40) return '#ff9f0a'; // fear
+            if (val < 60) return '#007aff'; // neutral
+            if (val < 80) return '#34c759'; // fomo
+            return '#ffcc00'; // extreme fomo
+        }
+
+        // Load historical chart data
+        async function loadHistoryChart() {
+            try {
+                const response = await fetch('/api/history');
+                const historyData = await response.json();
+                
+                if (historyData.length === 0) {
+                    console.log("尚無歷史 CSV 數據可用於繪圖。");
+                    return;
+                }
+                
+                const labels = historyData.map(d => d.date);
+                const prices = historyData.map(d => d.sp500);
+                const fomoScores = historyData.map(d => d.composite_fomo);
+
+                const ctx = document.getElementById('historyChart').getContext('2d');
+                
+                // If chart exists, destroy it
+                if (historyChart) {
+                    historyChart.destroy();
+                }
+
+                // Make Chart.js gradient background
+                const chartGradient = ctx.createLinearGradient(0, 0, 0, 300);
+                chartGradient.addColorStop(0, 'rgba(79, 70, 229, 0.15)');
+                chartGradient.addColorStop(1, 'rgba(79, 70, 229, 0.0)');
+
+                historyChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'S&P 500 指數價格',
+                                data: prices,
+                                borderPenWidth: 3,
+                                fill: true,
+                                backgroundColor: chartGradient,
+                                pointRadius: 1,
+                                pointHoverRadius: 6,
+                                // Premium Feature: Segment color coding by daily FOMO!
+                                segment: {
+                                    borderColor: ctx => {
+                                        const pIndex = ctx.p0DataIndex;
+                                        if (pIndex !== undefined && historyData[pIndex]) {
+                                            const score = historyData[pIndex].composite_fomo;
+                                            return getFomoColorStr(score);
+                                        }
+                                        return '#4f46e5';
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            intersect: false,
+                            mode: 'index',
+                        },
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(13, 17, 36, 0.9)',
+                                titleFont: { family: 'Outfit', size: 14, weight: '700' },
+                                bodyFont: { family: 'Outfit', size: 13 },
+                                borderPenWidth: 1,
+                                borderColor: 'rgba(255, 255, 255, 0.1)',
+                                callbacks: {
+                                    label: function(context) {
+                                        const index = context.dataIndex;
+                                        const price = context.parsed.y;
+                                        const fomoVal = historyData[index].composite_fomo;
+                                        const state = getFomoThemeInfo(fomoVal).label;
+                                        return [
+                                            `S&P 500: $${price.toLocaleString()}`,
+                                            `FOMO 指數: ${fomoVal.toFixed(1)} / 100`,
+                                            `當日情緒: ${state}`
+                                        ];
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.03)'
+                                },
+                                ticks: {
+                                    color: 'var(--text-secondary)',
+                                    font: { family: 'JetBrains Mono', size: 10 },
+                                    maxTicksLimit: 8
+                                }
+                            },
+                            y: {
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.03)'
+                                },
+                                ticks: {
+                                    color: 'var(--text-secondary)',
+                                    font: { family: 'JetBrains Mono', size: 10 },
+                                    callback: function(value) {
+                                        return '$' + value.toLocaleString();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+            } catch (err) {
+                console.error("載入歷史圖表失敗:", err);
+            }
+        }
+
+        // Trigger Model Retraining in background
+        async function triggerRetrain() {
+            const btn = document.getElementById('btn-retrain');
+            if (confirm("確認要從 yfinance 抓取最新 5 年美股數據，並在背景重新訓練機器學習模型嗎？此過程約需 10-15 秒。")) {
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 正在背景訓練模型...`;
+                
+                try {
+                    const response = await fetch('/api/train', { method: 'POST' });
+                    const res = await response.json();
+                    
+                    alert(res.message + " 請稍候，儀表板將在背景完成訓練後自動更新。");
+                    checkTrainingStatus();
+                } catch (err) {
+                    console.error("觸發訓練失敗:", err);
+                    alert("啟動重新訓練失敗，請重試。");
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> 重新訓練模型`;
+                }
+            }
+        }
+
+        // Periodically poll training status
+        async function checkTrainingStatus() {
+            const btn = document.getElementById('btn-retrain');
+            try {
+                const response = await fetch('/api/train/status');
+                const status = await response.json();
+                
+                if (status.is_training) {
+                    btn.disabled = true;
+                    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${status.message}`;
+                    // Poll again after 2 seconds
+                    setTimeout(checkTrainingStatus, 2000);
+                } else {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> 重新訓練模型`;
+                    
+                    // Reload dashboard and history chart if just trained
+                    if (status.last_trained !== "未進行過訓練") {
+                        loadFomoData();
+                        loadHistoryChart();
+                    }
+                }
+            } catch (err) {
+                console.error("獲取訓練狀態失敗:", err);
+            }
+        }
+
+        // Initialize dashboard on load
+        window.addEventListener('DOMContentLoaded', async () => {
+            await loadFomoData();
+            await loadHistoryChart();
+            checkTrainingStatus();
+            
+            // Auto refresh live indicators every 5 minutes (300000 ms)
+            setInterval(async () => {
+                console.log("自動定時刷新 FOMO 指標...");
+                await loadFomoData();
+            }, 300000);
+        });
+    </script>
+</body>
+</html>

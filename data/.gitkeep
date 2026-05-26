@@ -1,0 +1,2 @@
+# This file intentionally left empty.
+# Ensures `data/` directory is tracked by Git while its runtime contents are ignored.
