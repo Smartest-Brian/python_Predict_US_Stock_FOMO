@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 import yfinance as yf
@@ -13,11 +14,14 @@ def calculate_rolling_percentile(series, window=504):
         raw=True
     )
 
-def collect_and_build_dataset(start_date="2018-01-01", output_dir="data"):
+def collect_and_build_dataset(start_date=None, output_dir="data"):
     """
     從 yfinance 下載美股關鍵標的數據，計算 5 大市場情緒指標，並匯出 CSV 作為機器學習訓練集。
     """
-    print("=== 開始下載美股歷史數據 ===")
+    if start_date is None:
+        start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
+        
+    print(f"=== 開始下載美股歷史數據 (起點: {start_date}) ===")
     
     # 定義要下載的 Tickers
     # ^GSPC: S&P 500 Index (Momentum)
